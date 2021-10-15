@@ -26,6 +26,7 @@ library(rio)
 
 # Functions to clean document, get data from wide to long format
 source("functions/Cleaning.R")
+source("functions/repeat_funcs.R")
 
 # Setting global chunk options
 knitr::opts_chunk$set(echo = TRUE,
@@ -225,7 +226,7 @@ contrasts(model_data$target_group) <- contr.sum(2)
 ```{r}
 # model with target number nested within sub_id did not converge because not enough to be RE
 # Model with self items as RE also did not converge
-model_base <- lmer(target_bfi_value ~ self*target_number_collapsed + (1 | sub_id), data = model_data)
+model_base <- lmer(target_bfi_value ~ self_c*target_number_collapsed + (1 | sub_id), data = model_data)
 ```
 
 ## Residuals
@@ -278,3 +279,138 @@ tab_model(model_base,
           digits = 3)
 ```
 
+## Plot
+
+```{r}
+mod1_effects <- get_me_effects(model_base, 
+                               "self_c:target_number_collapsed", 
+                               target_number_collapsed,
+                               "target_1",
+                               "target_2")
+
+ggplot(mod1_effects, aes(self_c, fit, group = target_number_collapsed)) +
+    geom_smooth(method = "lm", 
+                se = FALSE, 
+                size = .7, 
+                colour = "black", 
+                aes(linetype = target_number_collapsed)) +
+    theme_minimal(base_size = 13) +
+    theme(legend.key.size = unit(1, "cm"))
+
+```
+
+We see that people counter-project at the beginning but not with the second target (after the intervention). What this study is missing is a comparison to another intervention - what my dissertation should have, but should still remain pre-post.
+
+# Model 2 - Interaction w/ Identification
+
+```{r}
+# model with target number nested within sub_id did not converge because not enough to be RE
+# Model with self items as RE also did not converge
+model_ident <- lmer(target_bfi_value ~ self_c*target_number_collapsed*ingroup_ident + (1 | sub_id), data = model_data)
+```
+
+Check residuals and heterogeneity of ingroup identification!!!!!!!!!!!!!!!
+
+## Results
+
+```{r}
+tab_model(model_ident,
+          digits = 3)
+```
+
+We see a significant effect of in-group identification that makes the effect of the intervention only trending. We do not see an interaction.
+
+## Model 3 - Interaction w/ threat
+
+```{r}
+# model with target number nested within sub_id did not converge because not enough to be RE
+# Model with self items as RE also did not converge
+model_threat <- lmer(target_bfi_value ~ self_c*target_number_collapsed*threat + (1 | sub_id), data = model_data)
+```
+
+Check residuals and heterogeneity of ingroup identification!!!!!!!!!!!!!!!
+
+## Results
+
+```{r}
+tab_model(model_threat,
+          digits = 3)
+```
+
+Unlike in-group identification, threat does not remove the effect of the interaction, even though it also has a significant main effect. Still, there is not interaction of the interaction with threat.
+
+## Exp. Model - Voting preference
+
+```{r}
+# model with target number nested within sub_id did not converge because not enough to be RE
+# Model with self items as RE also did not converge
+model_vote <- lmer(target_bfi_value ~ self_c*target_number_collapsed*target_group + (1 | sub_id), data = model_data)
+```
+
+Check residuals and heterogeneity of ingroup identification!!!!!!!!!!!!!!!
+
+## Results
+
+```{r}
+tab_model(model_vote,
+          digits = 3)
+```
+
+This has interactions and main effects on every effect. However, with how small the participant pool is in terms of who voted for Trump, I'm not sure this is reliable but probably is spurious. We could try to get money to get an equal sample of both sides - WOULD NEED PROLIFIC AND MONEY.
+
+## Exp. Model - COVID 1
+
+```{r}
+# model with target number nested within sub_id did not converge because not enough to be RE
+# Model with self items as RE also did not converge
+model_covid1 <- lmer(target_bfi_value ~ self_c*target_number_collapsed*covid1 + (1 | sub_id), data = model_data)
+```
+
+Check residuals and heterogeneity of ingroup identification!!!!!!!!!!!!!!!
+
+## Results
+
+```{r}
+tab_model(model_covid1,
+          digits = 3)
+```
+
+Nothing new significant
+
+## Exp. Model - COVID 2
+
+```{r}
+# model with target number nested within sub_id did not converge because not enough to be RE
+# Model with self items as RE also did not converge
+model_covid2 <- lmer(target_bfi_value ~ self_c*target_number_collapsed*covid2 + (1 | sub_id), data = model_data)
+```
+
+Check residuals and heterogeneity of ingroup identification!!!!!!!!!!!!!!!
+
+## Results
+
+```{r}
+tab_model(model_covid2,
+          digits = 3)
+```
+
+Interaction
+
+## Exp. Model - COVID 3
+
+```{r}
+# model with target number nested within sub_id did not converge because not enough to be RE
+# Model with self items as RE also did not converge
+model_covid3 <- lmer(target_bfi_value ~ self_c*target_number_collapsed*covid3 + (1 | sub_id), data = model_data)
+```
+
+Check residuals and heterogeneity of ingroup identification!!!!!!!!!!!!!!!
+
+## Results
+
+```{r}
+tab_model(model_covid3,
+          digits = 3)
+```
+
+Main effects no interactions.
