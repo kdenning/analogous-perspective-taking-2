@@ -57,7 +57,7 @@ psych::describe(long_data)
 
 ### Confirmatory
 
-```{r confirmatory}
+```{r}
 hist(long_data$ingroup_ident)
 
 hist(long_data$threat)
@@ -69,7 +69,7 @@ Identification is roughly normal, while threat is closer to flat.
 
 ## Boxplots
 
-```{r confirmatory}
+```{r}
 box_ident_res <- boxplot(long_data$ingroup_ident)
 
 boxplot(long_data$threat)
@@ -89,7 +89,7 @@ long_data %>%
 
 The outliers are not over our criteria of 3 SD so they will not be removed. Plus, they are theoretically important as the weakly identified individuals.
 
-```{r exporatory}
+```{r}
 boxplot(long_data$target_bfi_value ~ long_data$covid1) 
 
 boxplot(long_data$target_bfi_value ~ long_data$covid2)
@@ -227,7 +227,7 @@ contrasts(model_data$target_group) <- contr.sum(2)
 ```{r}
 # Model with self items as RE also did not converge
 # For reference about nesting: https://www.muscardinus.be/2017/07/lme4-random-effects/
-model_base <- lmer(target_bfi_value ~ self_c*target_number_collapsed + (1|target_number_collapsed), data = model_data)
+model_base <- lmer(target_bfi_value ~ self_c*target_number_collapsed + (self_c|target_number_collapsed), data = model_data)
 ```
 
 ## Residuals & Heteroscedasticity
