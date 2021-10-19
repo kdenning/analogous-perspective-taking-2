@@ -23,6 +23,7 @@ library(parameters)
 library(dplyr)
 library(tidyr)
 library(rio)
+library(ggplot2)
 
 # Functions to clean document, get data from wide to long format
 source("functions/Cleaning.R")
@@ -224,30 +225,41 @@ contrasts(model_data$target_group) <- contr.sum(2)
 ```
 
 ```{r}
-# model with target number nested within sub_id did not converge because not enough to be RE
 # Model with self items as RE also did not converge
-model_base <- lmer(target_bfi_value ~ self_c*target_number_collapsed + (1 | sub_id), data = model_data)
+# For reference about nesting: https://www.muscardinus.be/2017/07/lme4-random-effects/
+model_base <- lmer(target_bfi_value ~ self_c*target_number_collapsed + (1|target_number_collapsed), data = model_data)
 ```
 
-## Residuals
+## Residuals & Heteroscedasticity
 
 ```{r}
+# Level 1 set-up
 model_data$predict <- predict(model_base)
 
 model_data$resid <- model_data$target_bfi_value - model_data$predict
 
 model_data$zresid <- (model_data$resid - mean(model_data$resid))/sd(model_data$resid)
+
+# Level 2 set-up
+randeff <- ranef(model_base)$target_number_collapsed
+
+names(randeff) <- c("u0", "u1") #random effects
+randeff$target_number_collapsed <- rownames(randeff)
+
+model_data <- merge(model_data, randeff, by="target_number_collapsed")
 ```
 
-### Normality of Level 1 Residuals
+### Level 1: Items
+
+#### Normality
 
 ```{r}
 hist(model_data$zresid)
 ```
 
-*Did not do residuals for level 2 as we ended up not doing RE for predictors due to convergence issues.*
+Why are there three bars at 1? There are two groups for target number collapsed, so there should be two...
 
-### Heteroscadasticity: Responses for Self
+#### Heteroscedasticity: Responses for Self
 
 ```{r}
 resid_mod1 <- lm(model_data$zresid ~ model_data$self_c)
@@ -257,27 +269,46 @@ plot(resid_mod1)
 par(mfrow=c(1,1))
 ```
 
-### Heteroscadasticity: Responses for target number
+Line relatively flat, looks equally distributed, even if weird due to the variable.
+
+### Level 2: Targets/Time
+
+#### Normality of residuals for intercept
 
 ```{r}
-resid_mod2 <- lm(model_data$zresid ~ model_data$target_number_collapsed)
-
-plot(x = model_data$target_number_collapsed, 
-     y = model_data$zresid, 
-     main = "Heteroscedasticity",
-     xlab = "Target number/order",
-     ylab = "Residuals",
-     cex = 0.5, 
-     pch = 19)
-
-abline(resid_mod2, col = "darkred")
+hist(model_data$u0, prob = T)
 ```
 
+#### Heteroscedasticity 
+
+```{r}
+plot(model_data$u0 ~ model_data$target_number_collapsed)
+```
+
+Seems difficult to look at this with only two time points at L2; At completely different spots....
+
+#### Normality of residuals for RE
+
+```{r}
+hist(model_data$u1, prob = T)
+```
+
+#### Heteroscedasticity 
+
+```{r}
+plot(model_data$u1 ~ model_data$target_number_collapsed)
+```
+
+Same as for the intercept
+
 ## Results
+
 ```{r}
 tab_model(model_base,
           digits = 3)
 ```
+
+Nothing is significant
 
 ## Plot
 
@@ -287,10 +318,18 @@ mod1_effects <- get_me_effects(model_base,
                                target_number_collapsed,
                                "target_1",
                                "target_2")
-
+#Using model for paremeters
 ggplot(mod1_effects, aes(self_c, fit, group = target_number_collapsed)) +
     geom_smooth(method = "lm", 
-                se = FALSE, 
+                size = .7, 
+                colour = "black", 
+                aes(linetype = target_number_collapsed)) +
+    theme_minimal(base_size = 13) +
+    theme(legend.key.size = unit(1, "cm"))
+
+# Without using model to get se bars
+ggplot(model_data, aes(self_c, target_bfi_value, group = target_number_collapsed)) +
+    geom_smooth(method = "lm", 
                 size = .7, 
                 colour = "black", 
                 aes(linetype = target_number_collapsed)) +
@@ -299,118 +338,4 @@ ggplot(mod1_effects, aes(self_c, fit, group = target_number_collapsed)) +
 
 ```
 
-We see that people counter-project at the beginning but not with the second target (after the intervention). What this study is missing is a comparison to another intervention - what my dissertation should have, but should still remain pre-post.
-
-# Model 2 - Interaction w/ Identification
-
-```{r}
-# model with target number nested within sub_id did not converge because not enough to be RE
-# Model with self items as RE also did not converge
-model_ident <- lmer(target_bfi_value ~ self_c*target_number_collapsed*ingroup_ident + (1 | sub_id), data = model_data)
-```
-
-Check residuals and heterogeneity of ingroup identification!!!!!!!!!!!!!!!
-
-## Results
-
-```{r}
-tab_model(model_ident,
-          digits = 3)
-```
-
-We see a significant effect of in-group identification that makes the effect of the intervention only trending. We do not see an interaction.
-
-## Model 3 - Interaction w/ threat
-
-```{r}
-# model with target number nested within sub_id did not converge because not enough to be RE
-# Model with self items as RE also did not converge
-model_threat <- lmer(target_bfi_value ~ self_c*target_number_collapsed*threat + (1 | sub_id), data = model_data)
-```
-
-Check residuals and heterogeneity of ingroup identification!!!!!!!!!!!!!!!
-
-## Results
-
-```{r}
-tab_model(model_threat,
-          digits = 3)
-```
-
-Unlike in-group identification, threat does not remove the effect of the interaction, even though it also has a significant main effect. Still, there is not interaction of the interaction with threat.
-
-## Exp. Model - Voting preference
-
-```{r}
-# model with target number nested within sub_id did not converge because not enough to be RE
-# Model with self items as RE also did not converge
-model_vote <- lmer(target_bfi_value ~ self_c*target_number_collapsed*target_group + (1 | sub_id), data = model_data)
-```
-
-Check residuals and heterogeneity of ingroup identification!!!!!!!!!!!!!!!
-
-## Results
-
-```{r}
-tab_model(model_vote,
-          digits = 3)
-```
-
-This has interactions and main effects on every effect. However, with how small the participant pool is in terms of who voted for Trump, I'm not sure this is reliable but probably is spurious. We could try to get money to get an equal sample of both sides - WOULD NEED PROLIFIC AND MONEY.
-
-## Exp. Model - COVID 1
-
-```{r}
-# model with target number nested within sub_id did not converge because not enough to be RE
-# Model with self items as RE also did not converge
-model_covid1 <- lmer(target_bfi_value ~ self_c*target_number_collapsed*covid1 + (1 | sub_id), data = model_data)
-```
-
-Check residuals and heterogeneity of ingroup identification!!!!!!!!!!!!!!!
-
-## Results
-
-```{r}
-tab_model(model_covid1,
-          digits = 3)
-```
-
-Nothing new significant
-
-## Exp. Model - COVID 2
-
-```{r}
-# model with target number nested within sub_id did not converge because not enough to be RE
-# Model with self items as RE also did not converge
-model_covid2 <- lmer(target_bfi_value ~ self_c*target_number_collapsed*covid2 + (1 | sub_id), data = model_data)
-```
-
-Check residuals and heterogeneity of ingroup identification!!!!!!!!!!!!!!!
-
-## Results
-
-```{r}
-tab_model(model_covid2,
-          digits = 3)
-```
-
-Interaction
-
-## Exp. Model - COVID 3
-
-```{r}
-# model with target number nested within sub_id did not converge because not enough to be RE
-# Model with self items as RE also did not converge
-model_covid3 <- lmer(target_bfi_value ~ self_c*target_number_collapsed*covid3 + (1 | sub_id), data = model_data)
-```
-
-Check residuals and heterogeneity of ingroup identification!!!!!!!!!!!!!!!
-
-## Results
-
-```{r}
-tab_model(model_covid3,
-          digits = 3)
-```
-
-Main effects no interactions.
+I don't get why it isn't significant... Do we not have enough within-subjects time points to do random effects? When it isn't random effects, it is signfiicnat (I did this first when I was getting a convergence issue due to misassigning the model). I think I have the model correct now but nothing is significant (its the opposite). I didn't think the effect would be this drastic with within-subjects analyses.
