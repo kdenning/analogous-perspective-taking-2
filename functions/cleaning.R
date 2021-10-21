@@ -172,7 +172,7 @@ wide_to_long <- function(data){
     filter(mancheck == "correct") %>% 
     select(-mancheck_score, -mancheck_target) %>% 
     mutate(ingroup_ident_c = ingroup_ident - mean(ingroup_ident, na.rm = TRUE),
-           threat = threat - mean(threat, na.rm = TRUE),
+           threat_c = threat - mean(threat, na.rm = TRUE),
            self_c = self - mean(self, na.rm = TRUE))
 }
 

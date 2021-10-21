@@ -16,6 +16,7 @@ editor_options:
 # Loading packages
 library(psych)
 library(lme4)
+library(nlme)
 library(sjPlot)
 library(effects)
 library(magrittr) # part of the tidyverse but must be read in on its own
@@ -191,7 +192,7 @@ long_data %>%
   count()
 ```
 
-# Results - Basic Model
+# Basic Model
 
 ```{r}
 # Listwise removal of missing data per item
@@ -199,7 +200,7 @@ model_data <- long_data %>%
   select(sub_id, bfi_number, cand_pref, ingroup_ident, threat, 
          self, target_number_collapsed, target_bfi_value, 
          condition_order, covid1, covid2, covid3, target_group,
-         ingroup_ident_c, self_c) %>% 
+         ingroup_ident_c, self_c, threat_c) %>% 
   na.omit(long_data)
 
 ```
@@ -228,78 +229,38 @@ contrasts(model_data$target_group) <- contr.sum(2)
 # Model with self items as RE also did not converge
 # For reference about nesting: https://www.muscardinus.be/2017/07/lme4-random-effects/
 model_base <- lmer(target_bfi_value ~ self_c*target_number_collapsed + (self_c|target_number_collapsed), data = model_data)
+
+# lm.form <- formula(target_bfi_value ~ 1 + self_c + target_number_collapsed + 
+#                      ingroup_ident_c + threat_c + self_c:target_number_collapsed + 
+#                      self_c:ingroup_ident_c + self_c:threat_c + 
+#                      self_c:target_number_collapsed:ingroup_ident_c + 
+#                      self_c:target_number_collapsed:threat_c)
 ```
 
 ## Residuals & Heteroscedasticity
 
 ```{r}
-# Level 1 set-up
-model_data$predict <- predict(model_base)
+lm.form <- formula(target_bfi_value ~ 1 + self_c + target_number_collapsed + self_c:target_number_collapsed)
 
-model_data$resid <- model_data$target_bfi_value - model_data$predict
+control1 <- lmeControl(maxIter = 10000, msMaxIter = 10000, niterEM = 10000,
+                       msMaxEval = 10000, opt = c("nlminb"), optimMethod = "BFGS", returnObject=TRUE)
 
-model_data$zresid <- (model_data$resid - mean(model_data$resid))/sd(model_data$resid)
+model_base_nlme1 <- lme(lm.form,
+                        random = ~1 + self_c | sub_id,
+                        data = model_data,
+                        na.action = na.exclude,
+                        varIdent(form = ~1 | sub_id),
+                        control = control1)
 
-# Level 2 set-up
-randeff <- ranef(model_base)$target_number_collapsed
-
-names(randeff) <- c("u0", "u1") #random effects
-randeff$target_number_collapsed <- rownames(randeff)
-
-model_data <- merge(model_data, randeff, by="target_number_collapsed")
+# lmeControl(opt = "optim") # alternative code for control above; doesn't have convergence issue but has allocation issue
+model_base_nlme2 <- lme(lm.form,
+                        random = ~1 + self_c | sub_id,
+                        data = model_data,
+                        na.action = na.exclude)
 ```
 
-### Level 1: Items
 
-#### Normality
 
-```{r}
-hist(model_data$zresid)
-```
-
-Why are there three bars at 1? There are two groups for target number collapsed, so there should be two...
-
-#### Heteroscedasticity: Responses for Self
-
-```{r}
-resid_mod1 <- lm(model_data$zresid ~ model_data$self_c)
-
-par(mfrow=c(2,2))
-plot(resid_mod1)
-par(mfrow=c(1,1))
-```
-
-Line relatively flat, looks equally distributed, even if weird due to the variable.
-
-### Level 2: Targets/Time
-
-#### Normality of residuals for intercept
-
-```{r}
-hist(model_data$u0, prob = T)
-```
-
-#### Heteroscedasticity 
-
-```{r}
-plot(model_data$u0 ~ model_data$target_number_collapsed)
-```
-
-Seems difficult to look at this with only two time points at L2; At completely different spots....
-
-#### Normality of residuals for RE
-
-```{r}
-hist(model_data$u1, prob = T)
-```
-
-#### Heteroscedasticity 
-
-```{r}
-plot(model_data$u1 ~ model_data$target_number_collapsed)
-```
-
-Same as for the intercept
 
 ## Results
 
