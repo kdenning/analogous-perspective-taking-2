@@ -28,7 +28,6 @@ library(ggplot2)
 
 # Functions to clean document, get data from wide to long format
 source("functions/Cleaning.R")
-source("functions/repeat_funcs.R")
 
 # Setting global chunk options
 knitr::opts_chunk$set(echo = TRUE,
@@ -178,6 +177,13 @@ long_data %>%
 long_data %>% 
   select(sub_id, covid2) %>% 
   unique() %>% 
+  mutate(covid2 = recode(covid2,
+                         `1` = "0 to 2 people",
+                         `2` = "3 to 6 people",
+                         `3` = "7 to 10 people",
+                         `4` = "11 to 15 people",
+                         `5` = "16 to 20 people",
+                         `6` = "21 or more people")) %>% 
   group_by(covid2) %>% 
   count()
 ```
@@ -200,7 +206,7 @@ model_data <- long_data %>%
   select(sub_id, bfi_number, cand_pref, ingroup_ident, threat, 
          self, target_number_collapsed, target_bfi_value, 
          condition_order, covid1, covid2, covid3, target_group,
-         ingroup_ident_c, self_c, threat_c) %>% 
+         ingroup_ident_c, self_c, threat_c, gender) %>% 
   na.omit(long_data)
 
 ```
@@ -328,7 +334,11 @@ ggplot(model_data, aes(self_c, target_bfi_value, group = target_number_collapsed
                 colour = "black", 
                 aes(linetype = target_number_collapsed)) +
     theme_minimal(base_size = 13) +
-    theme(legend.key.size = unit(1, "cm"))
+    theme(legend.key.size = unit(1, "cm")) +
+    labs(title = "Projection by intervention",
+         subtitle = "Responses to target 1 were before the intervention. \nResponses to target 2 were after the intervention.",
+       x = "BFI responses for self",
+       y = "BFI responses for target")
 ```
 
 ## Identification main effect
@@ -358,7 +368,10 @@ ggplot(effects_data_ident, aes(self_c, fit, group = ingroup_ident_c)) +
                                   "High"),
                        values = c("solid",
                                   "dashed",
-                                  "dotted"))
+                                  "dotted")) +
+    labs(title = "Projection by in-group identification",
+       x = "BFI responses for self",
+       y = "BFI responses for target")
 ```
 
 ## Threat main effect
@@ -388,5 +401,196 @@ ggplot(effects_data_threat, aes(self_c, fit, group = threat_c)) +
                                   "High"),
                        values = c("solid",
                                   "dashed",
-                                  "dotted"))
+                                  "dotted")) +
+    labs(title = "Projection by perceived threat",
+       x = "BFI responses for self",
+       y = "BFI responses for target")
 ```
+
+# Exploratory models {.tabset .tabset-fade .tabset-pills}
+
+## Interaction of threat & identification
+
+```{r}
+mod_vartest_int <- lmer(target_bfi_value ~ self_c*target_number_collapsed*threat_c*ingroup_ident_c + (self_c |sub_id), data = model_data)
+
+anova(mod_vartest_threat, mod_vartest_int)
+
+anova(mod_vartest_ident, mod_vartest_int)
+
+tab_model(mod_vartest_int,
+          digits = 3)
+```
+
+Interestingly, adding the interaction of threat and ingroup identification did signficantly differ from the threat covariate model, but did improve upon the model only including identification.
+
+However, there are no higher-order interactions. Instead, we see the main effect of target number and threat remain, while the main effect of in-group identification is no longer significant. It appears threat is the stronger covariate.
+
+## Order
+
+```{r}
+mod_vartest_order <- lmer(target_bfi_value ~ self_c*target_number_collapsed*condition_order + (self_c |sub_id), data = model_data)
+
+anova(model_base, mod_vartest_order)
+
+tab_model(mod_vartest_order,
+          digits = 3)
+```
+
+UH-OH - The target order mattered.... I guess there are differences between men and women?
+
+### Exploring if order effect  is due to participant gender 
+
+```{r}
+# Model was rank deficient with other categories
+gender_filtered <- model_data %>% 
+  filter(gender == "Female" | gender == "Male")
+
+mod_vartest_order2 <- lmer(target_bfi_value ~ self_c*target_number_collapsed*condition_order*gender + (self_c |sub_id), data = gender_filtered)
+
+tab_model(mod_vartest_order2,
+          digits = 3)
+```
+
+First model is rank deficient, probably because of the categories that were underpowered (7, 1, 1). Gender does not moderate this effect.
+
+## Covid 1
+
+```{r}
+mod_vartest_covid1  <- lmer(target_bfi_value ~ self_c*target_number_collapsed*covid1 + (self_c |sub_id), data = model_data)
+
+anova(model_base, mod_vartest_covid1)
+```
+
+Adding first Covid filler question (whether or not they had it/knew someone who did OR did not) did not moderate anything, so did not look at results. A surprising number of people fell into the first category.
+
+## Covid 2
+
+```{r}
+mod_vartest_covid2  <- lmer(target_bfi_value ~ self_c*target_number_collapsed*covid2 + (self_c |sub_id), data = model_data)
+
+anova(model_base, mod_vartest_covid2)
+```
+
+Also not significantly different from the base model.
+
+## Covid 3
+
+```{r}
+mod_vartest_covid3  <- lmer(target_bfi_value ~ self_c*target_number_collapsed*covid3 + (self_c |sub_id), data = model_data)
+
+anova(model_base, mod_vartest_covid3)
+
+tab_model(mod_vartest_covid3,
+          digits = 3)
+```
+
+Main effect of covid 3 filler dummy coded for health, no interactions.
+
+## Voting preference
+
+```{r}
+mod_vartest_cand <- lmer(target_bfi_value ~ self_c*target_number_collapsed*cand_pref + (self_c |sub_id), data = model_data)
+
+anova(model_base, mod_vartest_cand)
+
+tab_model(mod_vartest_cand,
+          digits = 3)
+```
+
+This model is significantly different and all the effects are significant... HOWEVER, the groups are highly different in numbers and this makes me very uncomfortable with these results. We should collect equal numbers to analyze this question.
+
+**Not going to look at visualizations because I do not think these are reliable.
+
+# Exploratory visualizations {.tabset .tabset-fade .tabset-pills}
+
+## Threat accounting for identification 
+
+
+```{r}
+effects_data_threat_int <- effect("self_c:threat_c",
+                         xlevels = list(threat_c = c(-1.3, 0, 1.3)),
+                         mod = mod_vartest_int)
+
+effects_data_threat_int <- as.data.frame(effects_data_threat_int)
+effects_data_threat_int$threat_c <- as.factor(effects_data_threat_int$threat_c)
+  
+ggplot(effects_data_threat_int, aes(self_c, fit, group = threat_c)) +
+    geom_smooth(method = "lm", 
+                size = .7, 
+                se = FALSE,
+                colour = "black", 
+                aes(linetype = threat_c)) +
+    theme_minimal(base_size = 13) +
+    theme(legend.key.size = unit(1, "cm")) +
+  scale_linetype_manual("Threat",
+                        breaks = c(-1.3, 0, 1.3), 
+                       labels = c("Low",
+                                  "Average",
+                                  "High"),
+                       values = c("solid",
+                                  "dashed",
+                                  "dotted")) +
+    labs(title = "Projection by perceived threat",
+       x = "BFI responses for self",
+       y = "BFI responses for target")
+```
+
+Main effect of threat after accounting for in-group identification seems unaffected.
+
+## Interaction of target number and order
+
+```{r}
+order_label <- c("o1" = "Order 1 \n(Female target first)", 
+                 "o2" = "Order 2 \n(Male target first)")
+  
+ggplot(model_data, aes(self_c, 
+                       target_bfi_value, 
+                       group = target_number_collapsed)) +
+    geom_smooth(method = "lm", 
+                size = .7, 
+                colour = "black", 
+                aes(linetype = target_number_collapsed)) +
+  facet_wrap(~condition_order,
+             labeller = labeller(condition_order = order_label)) +
+  theme_minimal(base_size = 13) +
+  theme(legend.key.size = unit(1, "cm")) +
+  scale_linetype_manual("Target",,
+                       labels = c("Target 1",
+                                  "Target 2"),
+                       values = c("solid",
+                                  "dashed")) +
+    labs(title = "Projection by intervention and target order",
+         subtitle = "Responses to target 1 were before the intervention. \nResponses to target 2 were after the intervention.",
+       x = "BFI responses for self",
+       y = "BFI responses for target")
+```
+
+
+## Main effect of Covid 3
+
+```{r}
+ggplot(model_data, aes(self_c, 
+                       target_bfi_value, 
+                       group = covid3)) +
+    geom_smooth(method = "lm", 
+                size = .7, 
+                colour = "black", 
+                aes(linetype = covid3)) +
+  theme_minimal(base_size = 13) +
+  theme(legend.key.size = unit(1, "cm")) +
+  scale_linetype_manual("Concern during Covid",
+                       labels = c("Both Economic and Health",
+                                  "Economic",
+                                  "Health",
+                                  "Neither"),
+                       values = c("solid",
+                                  "dashed",
+                                  "dotted",
+                                  "longdash")) +
+    labs(title = "Projection by primary concern during Covid",
+       x = "BFI responses for self",
+       y = "BFI responses for target")
+```
+
+People whose main concern during Covid was health counter-projected across target variables, while all other participants projected positively to some degree.
