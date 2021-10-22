@@ -244,6 +244,17 @@ tab_model(model_base,
 # mod_vartest_targ <- lmer(target_bfi_value ~ self_c*target_number_collapsed + (self_c + target_number_collapsed|sub_id), data = model_data)
 ```
 
+### Checking if post intervention (target_2) is significantly different from 0
+
+```{r out diff from zero, echo = FALSE}
+diff0_1 <- model_base <- lmer(target_bfi_value ~ self_c + (self_c|sub_id), data = model_data, subset = (model_data$target_number_collapsed == 'target_2'))
+
+tab_model(diff0_1,
+          title = "Testing if post effect differs from 0")
+```
+
+Post intervention effect is not different from 0.
+
 ## Confirmatory Moderators
 
 ### In-group identification
