@@ -192,7 +192,7 @@ long_data %>%
   count()
 ```
 
-# Basic Model
+# Model Comparisons {.tabset .tabset-fade .tabset-pills}
 
 ```{r}
 # Listwise removal of missing data per item
@@ -225,142 +225,101 @@ model_data$target_group <- relevel(model_data$target_group, "Trump Supporter Tar
 contrasts(model_data$target_group) <- contr.sum(2)
 ```
 
+## Base Model
+
 ```{r}
-# Model with self items as RE also did not converge
 # For reference about nesting: https://www.muscardinus.be/2017/07/lme4-random-effects/
-model_base <- lmer(target_bfi_value ~ self_c*target_number_collapsed + (self_c + target_number_collapsed|sub_id), data = model_data)
+model_base <- lmer(target_bfi_value ~ self_c*target_number_collapsed + (self_c|sub_id), data = model_data)
+
+tab_model(model_base,
+          digits = 3)
+
+# Model adding RE for target_number_collapsed at this level did not converge
+# mod_vartest_targ <- lmer(target_bfi_value ~ self_c*target_number_collapsed + (self_c + target_number_collapsed|sub_id), data = model_data)
 ```
 
-## Residuals & Heteroscedasticity
+## Confirmatory Moderators
 
-### Level 1 
-
-```{r}
-lm.form <- formula(target_bfi_value ~ 1 + self_c + target_number_collapsed + self_c:target_number_collapsed)
-
-control1 <- lmeControl(maxIter = 10000, msMaxIter = 10000, niterEM = 10000,
-                       msMaxEval = 10000, opt = c("nlminb"), optimMethod = "BFGS", returnObject=TRUE)
-
-model_base_nlme1 <- lme(lm.form,
-                        random = ~1 + self_c | sub_id,
-                        data = model_data,
-                        na.action = na.exclude,
-                        varIdent(form = ~1 | sub_id),
-                        control = control1)
-
-# lmeControl(opt = "optim") # alternative code for control above; doesn't have convergence issue but has allocation issue
-model_base_nlme2 <- lme(lm.form,
-                        random = ~1 + self_c | sub_id,
-                        data = model_data,
-                        na.action = na.exclude)
-```
-
-### Level 2
-
-#### Testing target_number_collapsed
+### In-group identification
 
 ```{r}
-mod_vartest_targ <- lmer(target_bfi_value ~ self_c*target_number_collapsed + (self_c|sub_id), data = model_data)
+mod_vartest_ident <- lmer(target_bfi_value ~ self_c*target_number_collapsed*ingroup_ident_c + (self_c |sub_id), data = model_data)
 
-anova(model_base, mod_vartest_targ)
-```
+anova(model_base, mod_vartest_ident)
 
-The models in which target_number_collapsed are allowed to vary and are held to 0 differ significantly. Indicates the need to include the variances (and covariances) in the model.
-
-```{r}
-hist(ranef(model_base)$sub_id$`(Intercept)`, prob = T)
-```
-
-Normally distributed
-
-```{r}
-hist(ranef(model_base)$sub_id$target_number_collapsed, prob = T)
-```
-
-Normally distributed
-
-```{r}
-qqnorm(ranef(model_base)$sub_id$`(Intercept)`, 
-       main="Q-Q Plot for L2 Residuals: Intercept")
-qqline(ranef(model_base)$sub_id$`(Intercept)`, col = "steelblue", lwd = 2)
-```
-
-The residuals for the intercept look normal to me
-
-```{r}
-qqnorm(ranef(model_base)$sub_id$target_number_collapsed, 
-       main="Q-Q Plot for L2 Residuals: Target Number")
-qqline(ranef(model_base)$sub_id$target_number_collapsed, col = "steelblue", lwd = 2)
-```
-
-The residuals for target number look a little off, like they are shifting from normal to heavy tailed, which makes sense given the nature of the two groups. I'm not sure this is cause for concern given the data.
-
-
-Will want to do this for the moderators as well. However, I want to make sure I can get the level 1 test to work.
-
-#### Testing moderators
-
-##### In-group identification
-
-```{r}
-mod_vartest_ident1 <- lmer(target_bfi_value ~ self_c*target_number_collapsed*ingroup_ident_c + (self_c + target_number_collapsed |sub_id), data = model_data)
-
-# Model with ingroup_ident as moderator does not converge, as expected
-# mod_vartest_ident2 <- lmer(target_bfi_value ~ self_c*target_number_collapsed*ingroup_ident + (self_c + target_number_collapsed + ingroup_ident |sub_id), data = model_data)
-
-anova(mod_vartest_targ, mod_vartest_ident1)
+tab_model(mod_vartest_ident,
+          digits = 3)
 ```
 
 There is a significant difference adding ingroup_ident into the model when doing model comparisons. Checking next model with threat
 
-##### Threat
+### Threat
 
 ```{r}
-mod_vartest_threat1 <- lmer(target_bfi_value ~ self_c*target_number_collapsed*ingroup_ident_c*threat_c + (self_c + target_number_collapsed |sub_id), data = model_data)
-
-# Model with ingroup_ident as moderator does not converge, as expected
-# mod_vartest_threat2 <- lmer(target_bfi_value ~ self_c*target_number_collapsed*ingroup_ident_c*threat_c + (self_c + target_number_collapsed + threat_c |sub_id), data = model_data)
-
-anova(mod_vartest_ident1, mod_vartest_threat1)
-```
-
-And there is a significant difference between these models.
-
-##### Using the threat model to look at Level 2 residuals affected by moderators
+mod_vartest_threat <- lmer(target_bfi_value ~ self_c*target_number_collapsed*threat_c + (self_c |sub_id), data = model_data)
 
 
-```{r}
-hist(ranef(mod_vartest_threat1)$sub_id$`(Intercept)`, prob = T)
-```
+anova(model_base, mod_vartest_threat)
 
-```{r}
-hist(ranef(mod_vartest_threat1)$sub_id$target_number_collapsed, prob = T)
-```
+anova(mod_vartest_ident, mod_vartest_threat)
 
-```{r}
-qqnorm(ranef(mod_vartest_threat1)$sub_id$`(Intercept)`, 
-       main="Q-Q Plot for L2 Residuals: Intercept")
-qqline(ranef(mod_vartest_threat1)$sub_id$`(Intercept)`, col = "steelblue", lwd = 2)
-```
-
-```{r}
-qqnorm(ranef(mod_vartest_threat1)$sub_id$target_number_collapsed, 
-       main="Q-Q Plot for L2 Residuals: Target Number")
-qqline(ranef(mod_vartest_threat1)$sub_id$target_number_collapsed, col = "steelblue", lwd = 2)
-```
-
-Everything looks roughly the same as the base model. As the moderators were not used as random effects, they cannot be used for these visualizations.
-
-## Results
-
-```{r}
-tab_model(mod_vartest_threat1,
+tab_model(mod_vartest_threat,
           digits = 3)
 ```
 
-Main effect of target and main effect of threat, no higher-order interactions with the moderators.
+There is a significant difference between the base model and adding threat, but not between adding threat and adding in-group identification.
 
-## Plot
+Both models show the same pattern of results. There is a main effect of the intervention and a main effect of the moderator, but no interaction of the moderator on the intervention.
+
+## Level 1 Residuals
+
+```{r}
+# nlme code did not work, so extracted residuals from lmer and visually inspected
+
+# lm.form <- formula(target_bfi_value ~ 1 + self_c + target_number_collapsed + self_c:target_number_collapsed)
+# 
+# control1 <- lmeControl(maxIter = 10000, msMaxIter = 10000, niterEM = 10000,
+#                        msMaxEval = 10000, opt = c("nlminb"), optimMethod = "BFGS", returnObject=TRUE)
+# 
+# model_base_nlme1 <- lme(lm.form,
+#                         random = ~1 + self_c | sub_id,
+#                         data = model_data,
+#                         na.action = na.exclude,
+#                         varIdent(form = ~1 | sub_id),
+#                         control = lmeControl(opt = "optim", tolerance = 1e-3))
+# 
+# # lmeControl(opt = "optim") # alternative code for control above; doesn't have convergence issue but has allocation issue
+# model_base_nlme2 <- lme(lm.form,
+#                         random = ~1 + self_c | sub_id,
+#                         data = model_data,
+#                         na.action = na.exclude)
+
+model_data$predict <- predict(model_base)
+
+model_data$resid <- model_data$target_bfi_value - model_data$predict
+
+model_data$zresid <- (model_data$resid - mean(model_data$resid))/sd(model_data$resid)
+```
+
+### Normality
+
+```{r}
+hist(model_data$zresid)
+```
+
+### Heteroscedasticity: Responses for Self
+
+```{r}
+resid_mod1 <- lm(model_data$zresid ~ model_data$self_c)
+
+par(mfrow=c(2,2))
+plot(resid_mod1)
+par(mfrow=c(1,1))
+```
+
+# Confirmatory Visualizations {.tabset .tabset-fade .tabset-pills}
+
+## Target number main effect 
 
 ```{r}
 ggplot(model_data, aes(self_c, target_bfi_value, group = target_number_collapsed)) +
@@ -372,3 +331,62 @@ ggplot(model_data, aes(self_c, target_bfi_value, group = target_number_collapsed
     theme(legend.key.size = unit(1, "cm"))
 ```
 
+## Identification main effect
+
+```{r}
+# describe(model_data$ingroup_ident_c)
+
+effects_data_ident <- effect("self_c:ingroup_ident_c",
+                         xlevels = list(ingroup_ident_c = c(-0.95, 0, 0.95)),
+                         mod = mod_vartest_ident)
+
+effects_data_ident <- as.data.frame(effects_data_ident)
+effects_data_ident$ingroup_ident_c <- as.factor(effects_data_ident$ingroup_ident_c)
+
+  
+ggplot(effects_data_ident, aes(self_c, fit, group = ingroup_ident_c)) +
+    geom_smooth(method = "lm", 
+                size = .7, 
+                colour = "black", 
+                aes(linetype = ingroup_ident_c)) +
+    theme_minimal(base_size = 13) +
+    theme(legend.key.size = unit(1, "cm")) +
+    scale_linetype_manual("Identification",
+                        breaks = c(-0.95, 0, 0.95), 
+                       labels = c("Low",
+                                  "Average",
+                                  "High"),
+                       values = c("solid",
+                                  "dashed",
+                                  "dotted"))
+```
+
+## Threat main effect
+
+```{r}
+describe(model_data$threat_c)
+
+effects_data_threat <- effect("self_c:threat_c",
+                         xlevels = list(threat_c = c(-1.3, 0, 1.3)),
+                         mod = mod_vartest_threat)
+
+effects_data_threat <- as.data.frame(effects_data_threat)
+effects_data_threat$threat_c <- as.factor(effects_data_threat$threat_c)
+  
+ggplot(effects_data_threat, aes(self_c, fit, group = threat_c)) +
+    geom_smooth(method = "lm", 
+                size = .7, 
+                se = FALSE,
+                colour = "black", 
+                aes(linetype = threat_c)) +
+    theme_minimal(base_size = 13) +
+    theme(legend.key.size = unit(1, "cm")) +
+  scale_linetype_manual("Threat",
+                        breaks = c(-1.3, 0, 1.3), 
+                       labels = c("Low",
+                                  "Average",
+                                  "High"),
+                       values = c("solid",
+                                  "dashed",
+                                  "dotted"))
+```
