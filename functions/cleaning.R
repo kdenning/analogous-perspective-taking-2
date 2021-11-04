@@ -168,7 +168,12 @@ wide_to_long <- function(data){
                                      `1` = "Health",
                                      `4` = "Economic",
                                      `5` = "Neither",
-                                     `6` = "Both"))) %>%  
+                                     `6` = "Both")),
+           political_ident = as.factor(recode(political_ident,
+                                              `1` = "conservative",
+                                              `2` = "progressive/liberal",
+                                              `3` = "moderate",
+                                              `4` = "other"))) %>%  
     filter(mancheck == "correct") %>% 
     select(-mancheck_score, -mancheck_target) %>% 
     mutate(ingroup_ident_c = ingroup_ident - mean(ingroup_ident, na.rm = TRUE),

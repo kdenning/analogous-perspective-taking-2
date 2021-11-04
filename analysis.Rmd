@@ -101,7 +101,7 @@ boxplot(long_data$target_bfi_value ~ long_data$covid3)
 
 ## Sample Size
 
-### Overall:
+### Before removing listwise:
 
 ```{r n}
 long_data %>% 
@@ -110,10 +110,34 @@ long_data %>%
   nrow()
 ```
 
+### Listwise removal:
+
+*Data used in rest of demographics*
+
+```{r}
+# Listwise removal of missing data per item
+model_data <- long_data %>% 
+  select(sub_id, bfi_number, cand_pref, ingroup_ident, threat, 
+         self, target_number_collapsed, target_bfi_value, 
+         condition_order, covid1, covid2, covid3, target_group,
+         ingroup_ident_c, self_c, threat_c, gender, ethnicity, political_ident) %>% 
+  drop_na()
+
+```
+
+```{r n model}
+model_data %>% 
+  select(sub_id) %>% 
+  unique() %>% 
+  nrow()
+```
+
+## Political demographics
+
 ### N per Voting Opinion
 
 ```{r n by group and voting opin}
-long_data %>% 
+model_data %>% 
   select(sub_id, cand_pref) %>% 
   unique() %>% 
   group_by(cand_pref) %>% 
@@ -122,10 +146,20 @@ long_data %>%
 
 I'm wondering with so few Trump supporters if we should remove them from the analysis... There isn't enough for a comparison condition
 
+### Self-reported political leaning
+
+```{r n political ident}
+model_data %>% 
+  select(sub_id, political_ident) %>% 
+  unique() %>% 
+  group_by(political_ident) %>% 
+  count()
+```
+
 ## Gender
 
 ```{r gender}
-long_data %>% 
+model_data %>% 
   na.omit() %>% 
   select(sub_id, gender) %>% 
   unique() %>% 
@@ -136,7 +170,7 @@ long_data %>%
 ## Race/Ethnicity
 
 ```{r race}
-ethnicity_counts <- long_data %>% 
+ethnicity_counts <- model_data %>% 
   select(sub_id, ethnicity) %>% 
   na.omit() %>% 
   unique() %>% 
@@ -159,12 +193,14 @@ long_data %>%
             sd = sd(age))
 ```
 
+*Age uses long_data due to removing more data*
+
 ## COVID Questions
 
 ### Personal experience with COVID
 
 ```{r}
-long_data %>% 
+model_data %>% 
   select(sub_id, covid1) %>% 
   unique() %>% 
   group_by(covid1) %>% 
@@ -174,7 +210,7 @@ long_data %>%
 ### How many people they see
 
 ```{r}
-long_data %>% 
+model_data %>% 
   select(sub_id, covid2) %>% 
   unique() %>% 
   mutate(covid2 = recode(covid2,
@@ -191,7 +227,7 @@ long_data %>%
 ### Most important issue related to COVID
 
 ```{r}
-long_data %>% 
+model_data %>% 
   select(sub_id, covid3) %>% 
   unique() %>% 
   group_by(covid3) %>% 
@@ -199,17 +235,6 @@ long_data %>%
 ```
 
 # Model Comparisons {.tabset .tabset-fade .tabset-pills}
-
-```{r}
-# Listwise removal of missing data per item
-model_data <- long_data %>% 
-  select(sub_id, bfi_number, cand_pref, ingroup_ident, threat, 
-         self, target_number_collapsed, target_bfi_value, 
-         condition_order, covid1, covid2, covid3, target_group,
-         ingroup_ident_c, self_c, threat_c, gender) %>% 
-  na.omit(long_data)
-
-```
 
 ## Contrasts
 
@@ -262,7 +287,7 @@ Post intervention effect is not different from 0.
 ```{r}
 mod_vartest_ident <- lmer(target_bfi_value ~ self_c*target_number_collapsed*ingroup_ident_c + (self_c |sub_id), data = model_data)
 
-anova(model_base, mod_vartest_ident)
+# anova(model_base, mod_vartest_ident)
 
 tab_model(mod_vartest_ident,
           digits = 3)
@@ -276,9 +301,9 @@ There is a significant difference adding ingroup_ident into the model when doing
 mod_vartest_threat <- lmer(target_bfi_value ~ self_c*target_number_collapsed*threat_c + (self_c |sub_id), data = model_data)
 
 
-anova(model_base, mod_vartest_threat)
+#anova(model_base, mod_vartest_threat)
 
-anova(mod_vartest_ident, mod_vartest_threat)
+#anova(mod_vartest_ident, mod_vartest_threat)
 
 tab_model(mod_vartest_threat,
           digits = 3)
@@ -287,52 +312,6 @@ tab_model(mod_vartest_threat,
 There is a significant difference between the base model and adding threat, but not between adding threat and adding in-group identification.
 
 Both models show the same pattern of results. There is a main effect of the intervention and a main effect of the moderator, but no interaction of the moderator on the intervention.
-
-## Level 1 Residuals
-
-```{r}
-# nlme code did not work, so extracted residuals from lmer and visually inspected
-
-# lm.form <- formula(target_bfi_value ~ 1 + self_c + target_number_collapsed + self_c:target_number_collapsed)
-# 
-# control1 <- lmeControl(maxIter = 10000, msMaxIter = 10000, niterEM = 10000,
-#                        msMaxEval = 10000, opt = c("nlminb"), optimMethod = "BFGS", returnObject=TRUE)
-# 
-# model_base_nlme1 <- lme(lm.form,
-#                         random = ~1 + self_c | sub_id,
-#                         data = model_data,
-#                         na.action = na.exclude,
-#                         varIdent(form = ~1 | sub_id),
-#                         control = lmeControl(opt = "optim", tolerance = 1e-3))
-# 
-# # lmeControl(opt = "optim") # alternative code for control above; doesn't have convergence issue but has allocation issue
-# model_base_nlme2 <- lme(lm.form,
-#                         random = ~1 + self_c | sub_id,
-#                         data = model_data,
-#                         na.action = na.exclude)
-
-model_data$predict <- predict(model_base)
-
-model_data$resid <- model_data$target_bfi_value - model_data$predict
-
-model_data$zresid <- (model_data$resid - mean(model_data$resid))/sd(model_data$resid)
-```
-
-### Normality
-
-```{r}
-hist(model_data$zresid)
-```
-
-### Heteroscedasticity: Responses for Self
-
-```{r}
-resid_mod1 <- lm(model_data$zresid ~ model_data$self_c)
-
-par(mfrow=c(2,2))
-plot(resid_mod1)
-par(mfrow=c(1,1))
-```
 
 # Confirmatory Visualizations {.tabset .tabset-fade .tabset-pills}
 
@@ -346,10 +325,17 @@ ggplot(model_data, aes(self_c, target_bfi_value, group = target_number_collapsed
                 aes(linetype = target_number_collapsed)) +
     theme_minimal(base_size = 13) +
     theme(legend.key.size = unit(1, "cm")) +
-    labs(title = "Projection by intervention",
-         subtitle = "Responses to target 1 were before the intervention. \nResponses to target 2 were after the intervention.",
-       x = "BFI responses for self",
-       y = "BFI responses for target")
+    labs(
+      title = "Projection predicted by intervention (target order)",
+      x = "BFI responses for self",
+      y = "BFI responses for target"
+      ) +
+    scale_linetype_manual("Target order",
+                        breaks = c("target_1", "target_2"), 
+                       labels = c("Target 1 (pre)",
+                                  "Target 2 (post)"),
+                       values = c("solid",
+                                  "dashed"))
 ```
 
 ## Identification main effect
@@ -405,7 +391,7 @@ ggplot(effects_data_threat, aes(self_c, fit, group = threat_c)) +
                 aes(linetype = threat_c)) +
     theme_minimal(base_size = 13) +
     theme(legend.key.size = unit(1, "cm")) +
-  scale_linetype_manual("Threat",
+  scale_linetype_manual("Perceived \nGroup Threat",
                         breaks = c(-1.3, 0, 1.3), 
                        labels = c("Low",
                                   "Average",
@@ -413,7 +399,7 @@ ggplot(effects_data_threat, aes(self_c, fit, group = threat_c)) +
                        values = c("solid",
                                   "dashed",
                                   "dotted")) +
-    labs(title = "Projection by perceived threat",
+    labs(title = "Projection by perceived group threat",
        x = "BFI responses for self",
        y = "BFI responses for target")
 ```
@@ -425,9 +411,9 @@ ggplot(effects_data_threat, aes(self_c, fit, group = threat_c)) +
 ```{r}
 mod_vartest_int <- lmer(target_bfi_value ~ self_c*target_number_collapsed*threat_c*ingroup_ident_c + (self_c |sub_id), data = model_data)
 
-anova(mod_vartest_threat, mod_vartest_int)
+#anova(mod_vartest_threat, mod_vartest_int)
 
-anova(mod_vartest_ident, mod_vartest_int)
+#anova(mod_vartest_ident, mod_vartest_int)
 
 tab_model(mod_vartest_int,
           digits = 3)
@@ -442,7 +428,7 @@ However, there are no higher-order interactions. Instead, we see the main effect
 ```{r}
 mod_vartest_order <- lmer(target_bfi_value ~ self_c*target_number_collapsed*condition_order + (self_c |sub_id), data = model_data)
 
-anova(model_base, mod_vartest_order)
+#anova(model_base, mod_vartest_order)
 
 tab_model(mod_vartest_order,
           digits = 3)
@@ -465,12 +451,41 @@ tab_model(mod_vartest_order2,
 
 First model is rank deficient, probably because of the categories that were underpowered (7, 1, 1). Gender does not moderate this effect.
 
+### Liberal participants only
+
+```{r}
+lib_only <- model_data %>% 
+  filter(cand_pref == "Not Trump Supporter")
+
+mod_vartest_order_lib <- lmer(target_bfi_value ~ self_c*target_number_collapsed*condition_order + (self_c |sub_id), data = lib_only)
+
+#anova(model_base, mod_vartest_order)
+
+tab_model(mod_vartest_order_lib,
+          digits = 3)
+
+```
+
+## Only target order
+
+```{r}
+mod_orderonly_lib <- lmer(target_bfi_value ~ self_c*condition_order + (self_c |sub_id), data = lib_only)
+
+#anova(model_base, mod_vartest_order)
+
+tab_model(mod_orderonly_lib,
+          digits = 3)
+
+```
+
+Effect of target order is marginal
+
 ## Covid 1
 
 ```{r}
 mod_vartest_covid1  <- lmer(target_bfi_value ~ self_c*target_number_collapsed*covid1 + (self_c |sub_id), data = model_data)
 
-anova(model_base, mod_vartest_covid1)
+#anova(model_base, mod_vartest_covid1)
 ```
 
 Adding first Covid filler question (whether or not they had it/knew someone who did OR did not) did not moderate anything, so did not look at results. A surprising number of people fell into the first category.
@@ -480,7 +495,7 @@ Adding first Covid filler question (whether or not they had it/knew someone who 
 ```{r}
 mod_vartest_covid2  <- lmer(target_bfi_value ~ self_c*target_number_collapsed*covid2 + (self_c |sub_id), data = model_data)
 
-anova(model_base, mod_vartest_covid2)
+#anova(model_base, mod_vartest_covid2)
 ```
 
 Also not significantly different from the base model.
@@ -490,7 +505,7 @@ Also not significantly different from the base model.
 ```{r}
 mod_vartest_covid3  <- lmer(target_bfi_value ~ self_c*target_number_collapsed*covid3 + (self_c |sub_id), data = model_data)
 
-anova(model_base, mod_vartest_covid3)
+#anova(model_base, mod_vartest_covid3)
 
 tab_model(mod_vartest_covid3,
           digits = 3)
@@ -503,7 +518,7 @@ Main effect of covid 3 filler dummy coded for health, no interactions.
 ```{r}
 mod_vartest_cand <- lmer(target_bfi_value ~ self_c*target_number_collapsed*cand_pref + (self_c |sub_id), data = model_data)
 
-anova(model_base, mod_vartest_cand)
+#anova(model_base, mod_vartest_cand)
 
 tab_model(mod_vartest_cand,
           digits = 3)
@@ -551,9 +566,11 @@ Main effect of threat after accounting for in-group identification seems unaffec
 
 ## Interaction of target number and order
 
+### Both liberals and conservatives
+
 ```{r}
-order_label <- c("o1" = "Order 1 \n(Female target first)", 
-                 "o2" = "Order 2 \n(Male target first)")
+order_label <- c("o1" = "Female target first", 
+                 "o2" = "Male target first")
   
 ggplot(model_data, aes(self_c, 
                        target_bfi_value, 
@@ -566,17 +583,42 @@ ggplot(model_data, aes(self_c,
              labeller = labeller(condition_order = order_label)) +
   theme_minimal(base_size = 13) +
   theme(legend.key.size = unit(1, "cm")) +
-  scale_linetype_manual("Target",,
-                       labels = c("Target 1",
-                                  "Target 2"),
+  scale_linetype_manual("Target order",
+                       labels = c("Target 1 (pre)",
+                                  "Target 2 (post)"),
                        values = c("solid",
                                   "dashed")) +
-    labs(title = "Projection by intervention and target order",
-         subtitle = "Responses to target 1 were before the intervention. \nResponses to target 2 were after the intervention.",
+    labs(title = "Projection by intervention (target order) and target gender",
        x = "BFI responses for self",
        y = "BFI responses for target")
 ```
 
+### Liberals only
+
+mod_vartest_order_lib
+
+```{r}
+ggplot(lib_only, aes(self_c, 
+                       target_bfi_value, 
+                       group = target_number_collapsed)) +
+    geom_smooth(method = "lm", 
+                size = .7, 
+                colour = "black", 
+                aes(linetype = target_number_collapsed)) +
+  facet_wrap(~condition_order,
+             labeller = labeller(condition_order = order_label)) +
+  theme_minimal(base_size = 13) +
+  theme(legend.key.size = unit(1, "cm")) +
+  scale_linetype_manual("Target order",
+                       labels = c("Target 1 (pre)",
+                                  "Target 2 (post)"),
+                       values = c("solid",
+                                  "dashed")) +
+    labs(title = "Projection by intervention (target order) and target gender",
+         subtitle = "Only includes participants who did not vote for Trump",
+       x = "BFI responses for self",
+       y = "BFI responses for target")
+```
 
 ## Main effect of Covid 3
 
