@@ -436,7 +436,7 @@ tab_model(mod_vartest_order,
 
 UH-OH - The target order mattered.... I guess there are differences between men and women?
 
-### Exploring if order effect  is due to participant gender 
+### Exploring if order effect is due to participant gender 
 
 ```{r}
 # Model was rank deficient with other categories
@@ -466,19 +466,31 @@ tab_model(mod_vartest_order_lib,
 
 ```
 
-## Only target order
+## Only target 1
 
 ```{r}
-mod_orderonly_lib <- lmer(target_bfi_value ~ self_c*condition_order + (self_c |sub_id), data = lib_only)
+targ_1_data <- model_data %>% 
+  filter(target_number_collapsed == "target_1")
 
-#anova(model_base, mod_vartest_order)
+mod_targ1 <- lmer(target_bfi_value ~ self_c*condition_order + (self_c |sub_id), data = targ_1_data)
 
-tab_model(mod_orderonly_lib,
+tab_model(mod_targ1,
           digits = 3)
 
 ```
 
-Effect of target order is marginal
+## Only target 2
+
+```{r}
+targ_2_data <- model_data %>% 
+  filter(target_number_collapsed == "target_2")
+
+mod_targ2 <- lmer(target_bfi_value ~ self_c*condition_order + (self_c |sub_id), data = targ_2_data)
+
+tab_model(mod_targ2,
+          digits = 3)
+
+```
 
 ## Covid 1
 
