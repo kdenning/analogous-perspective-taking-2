@@ -1,0 +1,163 @@
+---
+title: "Supplemental"
+output: 
+    html_document:
+      code_download: TRUE
+      toc: TRUE
+      toc_float:
+        collapsed: FALSE
+      toc_depth: 1
+      code_folding: hide
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r data prep, echo = FALSE, warning = FALSE, message = FALSE, error = FALSE}
+# Loading packages
+library(psych)
+library(lme4)
+library(nlme)
+library(sjPlot)
+library(effects)
+library(magrittr) # part of the tidyverse but must be read in on its own
+library(parameters)
+library(dplyr)
+library(tidyr)
+library(rio)
+library(ggplot2)
+library(emmeans)
+library(corrplot)
+
+# Functions to clean document, get data from wide to long format
+source("functions/Cleaning.R")
+
+# Setting global chunk options
+knitr::opts_chunk$set(echo = TRUE,
+                      message = FALSE,
+                      warning = FALSE)
+
+options(scipen = 999)
+
+# Importing data
+wide_raw <- import("data/analog2_wide_pt to remove.csv") 
+
+# Cleaning data using functions
+wide_data_clean <- wide_factor_clean(wide_raw)
+
+long_data <- wide_to_long(wide_data_clean)
+```
+
+```{r}
+model_data <- long_data %>% 
+  select(sub_id, bfi_number, cand_pref, ingroup_ident, threat, 
+         self, target_number_collapsed, target_bfi_value, 
+         condition_order, covid1, covid2, covid3, target_group,
+         ingroup_ident_c, self_c, threat_c, gender, ethnicity, political_ident) %>% 
+  drop_na()
+
+contrasts(model_data$target_group) <- contr.sum(2)
+model_base <- lmer(target_bfi_value ~ self_c*target_number_collapsed + (self_c|sub_id), data = model_data)
+mod_vartest_ident <- lmer(target_bfi_value ~ self_c*target_number_collapsed*ingroup_ident_c + (self_c |sub_id), data = model_data)
+mod_vartest_threat <- lmer(target_bfi_value ~ self_c*target_number_collapsed*threat_c + (self_c |sub_id), data = model_data)
+mod_vartest_order <- lmer(target_bfi_value ~ self_c*target_number_collapsed*condition_order + (self_c |sub_id), data = model_data)
+
+```
+
+# Residuals
+
+## Instructions
+
+```{r}
+# checking normality of conditional residuals
+qqnorm(residuals(model_base), main="Q-Q plot for conditional residuals")
+
+# checking the normality of the random effects (here random slope:
+qqnorm(ranef(model_base)$sub_id$self_c,
+       main="Q-Q plot for the self random effect")
+ # random intercept
+qqnorm(ranef(model_base)$sub_id$`(Intercept)`,
+       main="Q-Q plot for the target random effect")
+
+plot_model(model_base, type='diag')
+```
+
+## In-group identification
+
+```{r}
+# checking normality of conditional residuals
+qqnorm(residuals(mod_vartest_ident), main="Q-Q plot for conditional residuals")
+
+# checking the normality of the random effects (here random slope:
+qqnorm(ranef(mod_vartest_ident)$sub_id$self_c,
+       main="Q-Q plot for the self random effect")
+ # random intercept
+qqnorm(ranef(mod_vartest_ident)$sub_id$`(Intercept)`,
+       main="Q-Q plot for the intercept")
+
+plot_model(mod_vartest_ident, type='diag')
+```
+
+## Group-level threat
+
+```{r}
+# checking normality of conditional residuals
+qqnorm(residuals(mod_vartest_threat), main="Q-Q plot for conditional residuals")
+
+# checking the normality of the random effects (here random slope:
+qqnorm(ranef(mod_vartest_threat)$sub_id$self_c,
+       main="Q-Q plot for the self random effect")
+ # random intercept
+qqnorm(ranef(mod_vartest_threat)$sub_id$`(Intercept)`,
+       main="Q-Q plot for the intercept")
+
+plot_model(mod_vartest_threat, type='diag')
+```
+
+## Target order
+
+```{r}
+# checking normality of conditional residuals
+qqnorm(residuals(mod_vartest_order), main="Q-Q plot for conditional residuals")
+
+# checking the normality of the random effects (here random slope:
+qqnorm(ranef(mod_vartest_order)$sub_id$self_c,
+       main="Q-Q plot for the self random effect")
+ # random intercept
+qqnorm(ranef(mod_vartest_order)$sub_id$`(Intercept)`,
+       main="Q-Q plot for the intercept")
+
+plot_model(mod_vartest_order, type='diag')
+```
+
+# Multicolinearity
+
+```{r}
+cor_bfi <- model_data %>% 
+  select(self, target_bfi_value, threat, ingroup_ident) %>% 
+  unique() %>% 
+  rename("BFI: Self" = self,
+         "BFI: Target" = target_bfi_value,
+         "Group-level threat" = threat,
+         "In-group identification" = ingroup_ident)
+
+correlations_preds <- cor(cor_bfi)
+
+corrplot(correlations_preds, 
+         is.corr = TRUE, 
+         #method = "number", 
+         method = 'color',
+         tl.cex = .85,
+         tl.col = 'black',
+         addgrid.col = 'white',
+         addCoef.col = 'grey50',
+         type = 'lower')
+```
+
+# Normality - BFI
+
+```{r}
+hist(long_data$self)
+
+hist(long_data$target_bfi_value)
+
+```
